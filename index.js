@@ -3,7 +3,7 @@ const sql = require("mssql");
 require("dotenv").config(); // <-- Load env vars at the very top
 
 const app = express();
-const port = 3009;
+const port = 5000;
 const cors = require("cors");
 app.use(cors());
 
@@ -25,85 +25,30 @@ app.get("/api/data", async (req, res) => {
   const top = parseInt(req.query.$top) || 100;
   const page = parseInt(req.query.page) || 1;
   const skip = (page - 1) * top;
-  const countRequested = req.query.$count === "true";
 
   try {
     pool = await sql.connect(config);
 
-    // Main paginated query
     const result = await pool
       .request()
       .input("skip", sql.Int, skip)
       .input("top", sql.Int, top).query(`
-      SELECT *
-      FROM (
-        SELECT 
-          GLJED.*,
-          GLJEDO.OPTFIELD,
-          GLJEDO.VALUE AS OPTFIELD_VALUE,
-          ROW_NUMBER() OVER (ORDER BY GLJED.BATCHNBR DESC) AS RowNum
-        FROM GLJED
-        LEFT JOIN GLJEDO
-          ON GLJED.TRANSNBR = GLJEDO.TRANSNBR
-          AND GLJED.JOURNALID = GLJEDO.JOURNALID
-      ) AS Paged
-      WHERE RowNum > @skip AND RowNum <= (@skip + @top)
-    `);
-
-    // Optional total count
-    let totalCount = null;
-    if (countRequested) {
-      const countResult = await pool.request().query(`
-        SELECT COUNT(*) AS total
-        FROM GLJED
-        LEFT JOIN GLJEDO
-          ON GLJED.TRANSNBR = GLJEDO.TRANSNBR
-          AND GLJED.JOURNALID = GLJEDO.JOURNALID
+        SELECT *
+        FROM (
+          SELECT 
+            GLJED.*,
+            GLJEDO.OPTFIELD,
+            GLJEDO.VALUE AS OPTFIELD_VALUE,
+            ROW_NUMBER() OVER (ORDER BY GLJED.BATCHNBR DESC) AS RowNum
+          FROM GLJED
+          LEFT JOIN GLJEDO
+            ON GLJED.BATCHNBR = GLJEDO.BATCHNBR
+        ) AS Paged
+        WHERE RowNum > @skip AND RowNum <= (@skip + @top)
       `);
-      totalCount = countResult.recordset[0].total;
-    }
-
-    // Custom mapping
-    const formattedData = result.recordset.map((entry) => ({
-      BatchNumber: entry.BATCHNBR,
-      JournalId: entry.JOURNALID,
-      TransactionNumber: entry.TRANSNBR,
-      AuditDate: entry.AUDTDATE,
-      AuditTime: entry.AUDTTIME,
-      AuditUser: entry.AUDTUSER?.trim(),
-      AuditOrg: entry.AUDTORG?.trim(),
-      AccountId: entry.ACCTID?.trim(),
-      CompanyId: entry.COMPANYID?.trim(),
-      TransactionAmount: entry.TRANSAMT,
-      TransactionQuantity: entry.TRANSQTY,
-      SourceCurrencyAmount: entry.SCURNAMT,
-      SourceCurrencyCode: entry.SCURNCODE,
-      SourceCurrencyDecimal: entry.SCURNDEC,
-      HomeCurrencyCode: entry.HCURNCODE,
-      RateType: entry.RATETYPE,
-      ConversionRate: entry.CONVRATE,
-      RateSpread: entry.RATESPREAD,
-      MatchDateCode: entry.DATEMTCHCD,
-      RateOperation: entry.RATEOPER,
-      TransactionDescription: entry.TRANSDESC?.trim(),
-      TransactionReference: entry.TRANSREF?.trim(),
-      TransactionDate: entry.TRANSDATE,
-      SourceLedger: entry.SRCELDGR,
-      SourceType: entry.SRCETYPE,
-      Values: entry.VALUES,
-      DepartmentComponent: entry.DESCOMP?.trim(),
-      Route: entry.ROUTE,
-      OptionalField: entry.OPTFIELD?.trim(),
-      OptionalFieldValue: entry.OPTFIELD_VALUE?.trim(),
-    }));
 
     res.json({
-      data: formattedData,
-      page,
-      top,
-      count: totalCount,
-      totalPages:
-        countRequested && totalCount ? Math.ceil(totalCount / top) : undefined,
+      data: result.recordset,
     });
   } catch (err) {
     console.error("SQL Error:", err);
@@ -139,8 +84,7 @@ app.get("/api/data/solutions", async (req, res) => {
             ROW_NUMBER() OVER (ORDER BY GLJED.BATCHNBR DESC) AS RowNum
           FROM GLJED
           LEFT JOIN GLJEDO
-            ON GLJED.TRANSNBR = GLJEDO.TRANSNBR
-            AND GLJED.JOURNALID = GLJEDO.JOURNALID
+           ON GLJED.BATCHNBR = GLJEDO.BATCHNBR
           WHERE RTRIM(GLJEDO.OPTFIELD) = 'SOLUTION'
         ) AS Paged
         WHERE RowNum > @skip AND RowNum <= (@skip + @top)
@@ -153,8 +97,7 @@ app.get("/api/data/solutions", async (req, res) => {
         SELECT COUNT(*) AS total
         FROM GLJED
         LEFT JOIN GLJEDO
-          ON GLJED.TRANSNBR = GLJEDO.TRANSNBR
-          AND GLJED.JOURNALID = GLJEDO.JOURNALID
+        ON GLJED.BATCHNBR = GLJEDO.BATCHNBR
         WHERE RTRIM(GLJEDO.OPTFIELD) = 'SOLUTION'
       `);
       totalCount = countResult.recordset[0].total;
@@ -234,8 +177,7 @@ app.get("/api/data/business-unit", async (req, res) => {
             ROW_NUMBER() OVER (ORDER BY GLJED.BATCHNBR DESC) AS RowNum
           FROM GLJED
           LEFT JOIN GLJEDO
-            ON GLJED.TRANSNBR = GLJEDO.TRANSNBR
-            AND GLJED.JOURNALID = GLJEDO.JOURNALID
+            ON GLJED.BATCHNBR = GLJEDO.BATCHNBR
           WHERE RTRIM(GLJEDO.OPTFIELD) = 'BUUNIT'
         ) AS Paged
         WHERE RowNum > @skip AND RowNum <= (@skip + @top)
@@ -248,8 +190,7 @@ app.get("/api/data/business-unit", async (req, res) => {
         SELECT COUNT(*) AS total
         FROM GLJED
         LEFT JOIN GLJEDO
-          ON GLJED.TRANSNBR = GLJEDO.TRANSNBR
-          AND GLJED.JOURNALID = GLJEDO.JOURNALID
+         ON GLJED.BATCHNBR = GLJEDO.BATCHNBR
         WHERE RTRIM(GLJEDO.OPTFIELD) = 'BUUNIT'
       `);
       totalCount = countResult.recordset[0].total;
@@ -326,11 +267,11 @@ app.get("/api/data/sector", async (req, res) => {
             GLJED.*,
             GLJEDO.OPTFIELD,
             GLJEDO.VALUE AS OPTFIELD_VALUE,
-            ROW_NUMBER() OVER (ORDER BY GLJED.BATCHNBR DESC) AS RowNum
+            ROW_NUMBER() OVER (ORDER BY CAST(GLJED.BATCHNBR AS INT) ASC) AS RowNum
           FROM GLJED
           LEFT JOIN GLJEDO
-            ON GLJED.TRANSNBR = GLJEDO.TRANSNBR
-            AND GLJED.JOURNALID = GLJEDO.JOURNALID
+            ON GLJED.BATCHNBR = GLJEDO.BATCHNBR
+          
           WHERE RTRIM(GLJEDO.OPTFIELD) = 'SECTOR'
         ) AS Paged
         WHERE RowNum > @skip AND RowNum <= (@skip + @top)
@@ -343,8 +284,7 @@ app.get("/api/data/sector", async (req, res) => {
         SELECT COUNT(*) AS total
         FROM GLJED
         LEFT JOIN GLJEDO
-          ON GLJED.TRANSNBR = GLJEDO.TRANSNBR
-          AND GLJED.JOURNALID = GLJEDO.JOURNALID
+          ON GLJED.BATCHNBR = GLJEDO.BATCHNBR
         WHERE RTRIM(GLJEDO.OPTFIELD) = 'SECTOR'
       `);
       totalCount = countResult.recordset[0].total;
