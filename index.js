@@ -3,7 +3,7 @@ const sql = require("mssql");
 require("dotenv").config(); // <-- Load env vars at the very top
 
 const app = express();
-const port = 5000;
+const port = 3009;
 const cors = require("cors");
 app.use(cors());
 
