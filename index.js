@@ -57,7 +57,7 @@ app.get("/api/data", async (req, res) => {
     if (pool) await pool.close();
   }
 });
-
+// data by solutions,BU and Sector
 app.get("/api/data/solutions", async (req, res) => {
   let pool;
 
@@ -338,7 +338,268 @@ app.get("/api/data/sector", async (req, res) => {
     if (pool) await pool.close();
   }
 });
+// summerized
+app.get("/api/data/summerized/solutions", async (req, res) => {
+  let pool;
 
+  try {
+    pool = await sql.connect(config);
+
+    const result = await pool.request().query(`
+      SELECT 
+        GLJED.*,
+        GLJEDO.OPTFIELD,
+        GLJEDO.VALUE AS OPTFIELD_VALUE
+      FROM GLJED
+      LEFT JOIN GLJEDO
+        ON GLJED.BATCHNBR = GLJEDO.BATCHNBR
+      WHERE RTRIM(GLJEDO.OPTFIELD) = 'SOLUTION'
+    `);
+
+    const formattedData = result.recordset.map((entry) => ({
+      BatchNumber: entry.BATCHNBR,
+      JournalId: entry.JOURNALID,
+      TransactionNumber: entry.TRANSNBR,
+      AuditDate: entry.AUDTDATE,
+      AuditTime: entry.AUDTTIME,
+      AuditUser: entry.AUDTUSER?.trim(),
+      AuditOrg: entry.AUDTORG?.trim(),
+      AccountId: entry.ACCTID?.trim(),
+      CompanyId: entry.COMPANYID?.trim(),
+      TransactionAmount: entry.TRANSAMT,
+      TransactionQuantity: entry.TRANSQTY,
+      SourceCurrencyAmount: entry.SCURNAMT,
+      SourceCurrencyCode: entry.SCURNCODE,
+      SourceCurrencyDecimal: entry.SCURNDEC,
+      HomeCurrencyCode: entry.HCURNCODE,
+      RateType: entry.RATETYPE,
+      ConversionRate: entry.CONVRATE,
+      RateSpread: entry.RATESPREAD,
+      MatchDateCode: entry.DATEMTCHCD,
+      RateOperation: entry.RATEOPER,
+      TransactionDescription: entry.TRANSDESC?.trim(),
+      TransactionReference: entry.TRANSREF?.trim(),
+      TransactionDate: entry.TRANSDATE,
+      SourceLedger: entry.SRCELDGR,
+      SourceType: entry.SRCETYPE,
+      Values: entry.VALUES,
+      DepartmentComponent: entry.DESCOMP?.trim(),
+      Route: entry.ROUTE,
+      OptionalField: entry.OPTFIELD?.trim(),
+      OptionalFieldValue: entry.OPTFIELD_VALUE?.trim(),
+    }));
+
+    // ✅ Calculate revenue, cogs, and grossProfit
+    const summary = {};
+
+    formattedData.forEach((entry) => {
+      const key = entry.OptionalFieldValue || "Unknown";
+
+      if (!summary[key]) {
+        summary[key] = {
+          revenue: 0,
+          cogs: 0,
+          grossProfit: 0,
+        };
+      }
+
+      const amount = parseFloat(entry.TransactionAmount) || 0;
+
+      if (entry.AccountId?.startsWith("4")) {
+        summary[key].revenue += amount;
+      } else if (entry.AccountId?.startsWith("5")) {
+        summary[key].cogs += amount;
+      }
+    });
+
+    for (const key in summary) {
+      summary[key].grossProfit = summary[key].revenue - summary[key].cogs;
+    }
+
+    res.json({
+      summary, // ✅ only summary included
+    });
+  } catch (err) {
+    console.error("SQL Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+app.get("/api/data/summerized/sector", async (req, res) => {
+  let pool;
+
+  try {
+    pool = await sql.connect(config);
+
+    const result = await pool.request().query(`
+      SELECT 
+        GLJED.*,
+        GLJEDO.OPTFIELD,
+        GLJEDO.VALUE AS OPTFIELD_VALUE
+      FROM GLJED
+      LEFT JOIN GLJEDO
+        ON GLJED.BATCHNBR = GLJEDO.BATCHNBR
+      WHERE RTRIM(GLJEDO.OPTFIELD) = 'SECTOR'
+    `);
+
+    const formattedData = result.recordset.map((entry) => ({
+      BatchNumber: entry.BATCHNBR,
+      JournalId: entry.JOURNALID,
+      TransactionNumber: entry.TRANSNBR,
+      AuditDate: entry.AUDTDATE,
+      AuditTime: entry.AUDTTIME,
+      AuditUser: entry.AUDTUSER?.trim(),
+      AuditOrg: entry.AUDTORG?.trim(),
+      AccountId: entry.ACCTID?.trim(),
+      CompanyId: entry.COMPANYID?.trim(),
+      TransactionAmount: entry.TRANSAMT,
+      TransactionQuantity: entry.TRANSQTY,
+      SourceCurrencyAmount: entry.SCURNAMT,
+      SourceCurrencyCode: entry.SCURNCODE,
+      SourceCurrencyDecimal: entry.SCURNDEC,
+      HomeCurrencyCode: entry.HCURNCODE,
+      RateType: entry.RATETYPE,
+      ConversionRate: entry.CONVRATE,
+      RateSpread: entry.RATESPREAD,
+      MatchDateCode: entry.DATEMTCHCD,
+      RateOperation: entry.RATEOPER,
+      TransactionDescription: entry.TRANSDESC?.trim(),
+      TransactionReference: entry.TRANSREF?.trim(),
+      TransactionDate: entry.TRANSDATE,
+      SourceLedger: entry.SRCELDGR,
+      SourceType: entry.SRCETYPE,
+      Values: entry.VALUES,
+      DepartmentComponent: entry.DESCOMP?.trim(),
+      Route: entry.ROUTE,
+      OptionalField: entry.OPTFIELD?.trim(),
+      OptionalFieldValue: entry.OPTFIELD_VALUE?.trim(),
+    }));
+
+    // ✅ Calculate revenue, cogs, and grossProfit
+    const summary = {};
+
+    formattedData.forEach((entry) => {
+      const key = entry.OptionalFieldValue || "Unknown";
+
+      if (!summary[key]) {
+        summary[key] = {
+          revenue: 0,
+          cogs: 0,
+          grossProfit: 0,
+        };
+      }
+
+      const amount = parseFloat(entry.TransactionAmount) || 0;
+
+      if (entry.AccountId?.startsWith("4")) {
+        summary[key].revenue += amount;
+      } else if (entry.AccountId?.startsWith("5")) {
+        summary[key].cogs += amount;
+      }
+    });
+
+    for (const key in summary) {
+      summary[key].grossProfit = summary[key].revenue - summary[key].cogs;
+    }
+
+    res.json({
+      summary, // ✅ only summary included
+    });
+  } catch (err) {
+    console.error("SQL Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+app.get("/api/data/summerized/buunit", async (req, res) => {
+  let pool;
+
+  try {
+    pool = await sql.connect(config);
+
+    const result = await pool.request().query(`
+      SELECT 
+        GLJED.*,
+        GLJEDO.OPTFIELD,
+        GLJEDO.VALUE AS OPTFIELD_VALUE
+      FROM GLJED
+      LEFT JOIN GLJEDO
+        ON GLJED.BATCHNBR = GLJEDO.BATCHNBR
+      WHERE RTRIM(GLJEDO.OPTFIELD) = 'BUUNIT'
+    `);
+
+    const formattedData = result.recordset.map((entry) => ({
+      BatchNumber: entry.BATCHNBR,
+      JournalId: entry.JOURNALID,
+      TransactionNumber: entry.TRANSNBR,
+      AuditDate: entry.AUDTDATE,
+      AuditTime: entry.AUDTTIME,
+      AuditUser: entry.AUDTUSER?.trim(),
+      AuditOrg: entry.AUDTORG?.trim(),
+      AccountId: entry.ACCTID?.trim(),
+      CompanyId: entry.COMPANYID?.trim(),
+      TransactionAmount: entry.TRANSAMT,
+      TransactionQuantity: entry.TRANSQTY,
+      SourceCurrencyAmount: entry.SCURNAMT,
+      SourceCurrencyCode: entry.SCURNCODE,
+      SourceCurrencyDecimal: entry.SCURNDEC,
+      HomeCurrencyCode: entry.HCURNCODE,
+      RateType: entry.RATETYPE,
+      ConversionRate: entry.CONVRATE,
+      RateSpread: entry.RATESPREAD,
+      MatchDateCode: entry.DATEMTCHCD,
+      RateOperation: entry.RATEOPER,
+      TransactionDescription: entry.TRANSDESC?.trim(),
+      TransactionReference: entry.TRANSREF?.trim(),
+      TransactionDate: entry.TRANSDATE,
+      SourceLedger: entry.SRCELDGR,
+      SourceType: entry.SRCETYPE,
+      Values: entry.VALUES,
+      DepartmentComponent: entry.DESCOMP?.trim(),
+      Route: entry.ROUTE,
+      OptionalField: entry.OPTFIELD?.trim(),
+      OptionalFieldValue: entry.OPTFIELD_VALUE?.trim(),
+    }));
+
+    // ✅ Calculate revenue, cogs, and grossProfit
+    const summary = {};
+
+    formattedData.forEach((entry) => {
+      const key = entry.OptionalFieldValue || "Unknown";
+
+      if (!summary[key]) {
+        summary[key] = {
+          revenue: 0,
+          cogs: 0,
+          grossProfit: 0,
+        };
+      }
+
+      const amount = parseFloat(entry.TransactionAmount) || 0;
+
+      if (entry.AccountId?.startsWith("4")) {
+        summary[key].revenue += amount;
+      } else if (entry.AccountId?.startsWith("5")) {
+        summary[key].cogs += amount;
+      }
+    });
+
+    for (const key in summary) {
+      summary[key].grossProfit = summary[key].revenue - summary[key].cogs;
+    }
+
+    res.json({
+      summary, // ✅ only summary included
+    });
+  } catch (err) {
+    console.error("SQL Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
